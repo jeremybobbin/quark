@@ -12,7 +12,7 @@
 .Op Fl g Ar group
 .Op Fl n Ar num
 .Op Fl d Ar dir
-.Op Fl l
+.Op Fl lx
 .Op Fl i Ar file
 .Oo Fl v Ar vhost Oc ...
 .Oo Fl m Ar map Oc ...
@@ -23,22 +23,13 @@
 .Op Fl g Ar group
 .Op Fl n Ar num
 .Op Fl d Ar dir
-.Op Fl l
+.Op Fl lx
 .Op Fl i Ar file
 .Oo Fl v Ar vhost Oc ...
 .Oo Fl m Ar map Oc ...
 .Sh DESCRIPTION
 .Nm
-is a simple HTTP GET/HEAD-only web server for static content.
-It supports virtual hosts (see
-.Fl v ) ,
-explicit redirects (see
-.Fl m ) ,
-directory listings (see
-.Fl l ) ,
-conditional "If-Modified-Since"-requests (RFC 7232), range requests
-(RFC 7233) and well-known URIs (RFC 8615), while refusing to serve
-hidden files and directories.
+is a simple HTTP web server.
 .Sh OPTIONS
 .Bl -tag -width Ds
 .It Fl d Ar dir
@@ -121,6 +112,8 @@ as the root directory, optionally prefixing the target with
 .Pa prefix .
 If any virtual hosts are specified, all requests on non-matching
 hosts are discarded.
+.It Fl x
+Enable file execution.
 .El
 .Sh CUSTOMIZATION
 .Nm
