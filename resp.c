@@ -38,6 +38,84 @@ suffix(int t)
 	return "";
 }
 
+enum status
+resp_cgi(int fd, char *name, struct request *r, struct stat *st)
+{
+	enum status sta;
+	int tocgi[2], fromcgi[2];
+	pid_t script;
+	ssize_t bread, bwritten;
+	static char buf[BUFSIZ], t[TIMESTAMP_LEN];
+
+	/* check if script is executable */
+	if (!(st->st_mode & S_IXOTH)) {
+		return http_send_status(fd, S_FORBIDDEN);
+	}
+
+	/* open two pipes in case for POST method; this doesn't break operation if GET method is used */
+	if (pipe(fromcgi) < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+
+	if (pipe(tocgi) < 0) {
+			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+
+	/* start script */
+	if (!(script = fork())) {
+		close(0);
+		close(1);
+		close(fromcgi[0]);
+		close(tocgi[1]);
+		dup2(fromcgi[1], 1);
+		dup2(tocgi[0], 0);
+		execlp(name, name, (char*) NULL);
+	}
+
+	if (script < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+	close(fromcgi[1]);
+	close(tocgi[0]);
+
+	/* POST method should obtain its data */
+	if (dprintf(tocgi[1], "%s\n", r->cgicont) < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+	close(tocgi[1]);
+
+	/* send header as late as possible */
+	if (dprintf(fd,
+	            "HTTP/1.1 %d %s\r\n"
+	            "Date: %s\r\n"
+	            "Connection: close\r\n",
+	            S_OK, status_str[S_OK], timestamp(time(NULL), t)) < 0) {
+		sta = S_REQUEST_TIMEOUT;
+		goto cleanup;
+	}
+
+	while ((bread = read(fromcgi[0], buf, BUFSIZ)) > 0) {
+		if (bread < 0) {
+			return S_INTERNAL_SERVER_ERROR;
+		}
+
+		bwritten = write(fd, buf, bread);
+
+		if (bwritten < 0) {
+			return S_REQUEST_TIMEOUT;
+		}
+	}
+	sta = S_OK;
+cleanup:
+	if (fromcgi[0]) {
+		close(fromcgi[0]);
+	}
+
+	return sta;
+}
+
+
+
 static void
 html_escape(char *src, char *dst, size_t dst_siz)
 {

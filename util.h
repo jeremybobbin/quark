@@ -23,6 +23,12 @@ struct map {
 	char *to;
 };
 
+struct cgi {
+	char *regex;
+	char *dir;
+	regex_t re;
+};
+
 extern struct server {
 	char *host;
 	char *port;
@@ -32,6 +38,8 @@ extern struct server {
 	size_t vhost_len;
 	struct map *map;
 	size_t map_len;
+	struct cgi *cgi;
+	size_t cgi_len;
 } s;
 
 #undef MIN

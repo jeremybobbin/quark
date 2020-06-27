@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
@@ -30,10 +31,12 @@ const char *req_field_str[] = {
 const char *req_method_str[] = {
 	[M_GET]  = "GET",
 	[M_HEAD] = "HEAD",
+	[M_POST] = "POST",
 };
 
 const char *status_str[] = {
 	[S_OK]                    = "OK",
+	[S_NO_CONTENT]            = "No content",
 	[S_PARTIAL_CONTENT]       = "Partial Content",
 	[S_MOVED_PERMANENTLY]     = "Moved Permanently",
 	[S_NOT_MODIFIED]          = "Not Modified",
@@ -97,6 +100,7 @@ http_get_request(int fd, struct request *r)
 	size_t hlen, i, mlen;
 	ssize_t off;
 	char h[HEADER_MAX], *p, *q;
+	size_t clen;
 
 	/* empty all fields */
 	memset(r, 0, sizeof(*r));
@@ -111,22 +115,22 @@ http_get_request(int fd, struct request *r)
 			break;
 		}
 		hlen += off;
-		if (hlen >= 4 && !memcmp(h + hlen - 4, "\r\n\r\n", 4)) {
-			break;
+		if (hlen >= 4 && strstr(h, "\r\n\r\n")) {
+			if (strstr(h, "Content-Length:")) {
+				/* Make sure that all data is read */
+				sscanf(strstr(h, "Content-Length:"), "Content-Length: %lu", &clen);
+				if (strlen(strstr(h, "\r\n\r\n")) == 4 + clen) {
+					break;
+				}
+			}
+			else {
+				break;
+			}
 		}
 		if (hlen == sizeof(h)) {
 			return http_send_status(fd, S_REQUEST_TOO_LARGE);
 		}
 	}
-
-	/* remove terminating empty line */
-	if (hlen < 2) {
-		return http_send_status(fd, S_BAD_REQUEST);
-	}
-	hlen -= 2;
-
-	/* null-terminate the header */
-	h[hlen] = '\0';
 
 	/*
 	 * parse request line
@@ -137,6 +141,7 @@ http_get_request(int fd, struct request *r)
 		mlen = strlen(req_method_str[i]);
 		if (!strncmp(req_method_str[i], h, mlen)) {
 			r->method = i;
+			setenv("REQUEST_METHOD", req_method_str[i], 1);
 			break;
 		}
 	}
@@ -161,7 +166,6 @@ http_get_request(int fd, struct request *r)
 		return http_send_status(fd, S_REQUEST_TOO_LARGE);
 	}
 	memcpy(r->target, p, q - p + 1);
-	decode(r->target, r->target);
 
 	/* basis for next step */
 	p = q + 1;
@@ -200,7 +204,11 @@ http_get_request(int fd, struct request *r)
 		if (i == NUM_REQ_FIELDS) {
 			/* unmatched field, skip this line */
 			if (!(q = strstr(p, "\r\n"))) {
-				return http_send_status(fd, S_BAD_REQUEST);
+				if (r->method == M_POST) {
+					break;
+				} else {
+					return http_send_status(fd, S_BAD_REQUEST);
+				}
 			}
 			p = q + (sizeof("\r\n") - 1);
 			continue;
@@ -230,6 +238,9 @@ http_get_request(int fd, struct request *r)
 		/* go to next line */
 		p = q + (sizeof("\r\n") - 1);
 	}
+
+	/* all other data will be later passed to script */
+	sprintf(r->cgicont, "%s", p);
 
 	/*
 	 * clean up host
@@ -360,6 +371,36 @@ http_send_response(int fd, struct request *r)
 
 	/* make a working copy of the target */
 	memcpy(realtarget, r->target, sizeof(realtarget));
+
+	/* check if there is some query string */
+	if (strrchr(realtarget, '?')) {
+		snprintf(tmptarget, sizeof(realtarget), "%s", strtok(realtarget, "?"));
+		setenv("QUERY_STRING", strtok(NULL, "?"), 1);
+		memcpy(realtarget, tmptarget, sizeof(tmptarget));
+	}
+	decode(realtarget, tmptarget);
+
+	/* match cgi */
+	if (s.cgi) {
+		for (i = 0; i < s.cgi_len; i++) {
+			if (!regexec(&s.cgi[i].re, realtarget, 0,
+			             NULL, 0)) {
+				snprintf(realtarget, sizeof(tmptarget) + sizeof(s.cgi[i].dir) - 1, "%s%s", s.cgi[i].dir, tmptarget);
+				if (stat(RELPATH(realtarget), &st) < 0) {
+					return http_send_status(fd, (errno == EACCES) ?
+					                        S_FORBIDDEN : S_NO_CONTENT);
+				}
+				setenv("SERVER_NAME", r->field[REQ_HOST], 1);
+				if (s.port) {
+					setenv("SERVER_PORT", s.port, 1);
+				}
+				setenv("SCRIPT_NAME", realtarget, 1);
+				return resp_cgi(fd, RELPATH(realtarget), r, &st);
+			}
+		}
+	}
+
+	memcpy(realtarget, tmptarget, sizeof(tmptarget));
 
 	/* match vhost */
 	vhostmatch = NULL;

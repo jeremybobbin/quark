@@ -16,6 +16,7 @@
 .Op Fl i Ar file
 .Oo Fl v Ar vhost Oc ...
 .Oo Fl m Ar map Oc ...
+.Oo Fl c Ar cgi Oc ...
 .Nm
 .Fl U Ar file
 .Op Fl p Ar port
@@ -27,11 +28,28 @@
 .Op Fl i Ar file
 .Oo Fl v Ar vhost Oc ...
 .Oo Fl m Ar map Oc ...
+.Oo Fl c Ar cgi Oc ...
 .Sh DESCRIPTION
 .Nm
-is a simple HTTP GET/HEAD-only web server for static content.
+is a simple HTTP web server.
 .Sh OPTIONS
 .Bl -tag -width Ds
+.It Fl c Ar cgi
+Add the target prefix mapping rule for dynamic content specified by
+.Ar cgi ,
+which has the form
+.Qq Pa regex dir ,
+where each element is separated with spaces (0x20) that can be
+escaped with '\\'.
+.Pp
+A request matching cgi regular expression
+.Pa regex
+(see
+.Xr regex 3 )
+executes script located in
+.Pa dir
+passing data to it via QUERY_STRING environment variable
+or via stdout and then sends its stdout.
 .It Fl d Ar dir
 Serve
 .Ar dir
