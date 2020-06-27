@@ -158,11 +158,12 @@ err:
 	return 1;
 }
 
+
 static void
 usage(void)
 {
 	const char *opts = "[-n num] [-d dir] [-l] "
-	                   "[-i file] [-v vhost] ... [-m map] ...";
+	                   "[-i file] [-v vhost] ... [-m map] ... [-c cgi] ...";
 
 	die("usage: %s -p port [-h host] %s\n"
 	    "       %s -U file [-p port] %s", argv0,
@@ -188,11 +189,23 @@ main(int argc, char *argv[])
 	s.host = s.port = NULL;
 	s.vhost = NULL;
 	s.map = NULL;
-	s.vhost_len = s.map_len = 0;
+	s.cgi = NULL;
+	s.vhost_len = s.map_len = s.cgi_len = 0;
 	s.docindex = "index.html";
 	s.listdirs = 0;
 
 	ARGBEGIN {
+	case 'c':
+		if (spacetok(EARGF(usage()), tok, 2) || !tok[0] || !tok[1]) {
+			usage();
+		}
+		if (!(s.cgi = reallocarray(s.cgi, ++s.cgi_len,
+		                             sizeof(struct cgi)))) {
+			die("reallocarray:");
+		}
+		s.cgi[s.cgi_len - 1].regex  = tok[0];
+		s.cgi[s.cgi_len - 1].dir  = tok[1];
+		break;
 	case 'd':
 		servedir = EARGF(usage());
 		break;
@@ -270,6 +283,15 @@ main(int argc, char *argv[])
 		            REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
 			die("regcomp '%s': invalid regex",
 			    s.vhost[i].regex);
+		}
+	}
+
+	/* compile and check the supplied cgi regexes */
+	for (i = 0; i < s.cgi_len; i++) {
+		if (regcomp(&s.cgi[i].re, s.cgi[i].regex,
+		            REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
+			die("regcomp '%s': invalid regex",
+			    s.cgi[i].regex);
 		}
 	}
 

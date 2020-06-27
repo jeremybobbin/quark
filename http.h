@@ -19,6 +19,7 @@ extern const char *req_field_str[];
 enum req_method {
 	M_GET,
 	M_HEAD,
+	M_POST,
 	NUM_REQ_METHODS,
 };
 
@@ -28,10 +29,12 @@ struct request {
 	enum req_method method;
 	char target[PATH_MAX];
 	char field[NUM_REQ_FIELDS][FIELD_MAX];
+	char cgicont[PATH_MAX];
 };
 
 enum status {
 	S_OK                    = 200,
+	S_NO_CONTENT            = 204,
 	S_PARTIAL_CONTENT       = 206,
 	S_MOVED_PERMANENTLY     = 301,
 	S_NOT_MODIFIED          = 304,
