@@ -158,10 +158,11 @@ err:
 	return 1;
 }
 
+
 static void
 usage(void)
 {
-	const char *opts = "[-n num] [-d dir] [-l] "
+	const char *opts = "[-n num] [-d dir] [-lx] "
 	                   "[-i file] [-v vhost] ... [-m map] ...";
 
 	die("usage: %s -p port [-h host] %s\n"
@@ -188,6 +189,7 @@ main(int argc, char *argv[])
 	s.host = s.port = NULL;
 	s.vhost = NULL;
 	s.map = NULL;
+	s.x = 0;
 	s.vhost_len = s.map_len = 0;
 	s.docindex = "index.html";
 	s.listdirs = 0;
@@ -245,6 +247,9 @@ main(int argc, char *argv[])
 		s.vhost[s.vhost_len - 1].regex  = tok[1];
 		s.vhost[s.vhost_len - 1].dir    = tok[2];
 		s.vhost[s.vhost_len - 1].prefix = tok[3];
+		break;
+	case 'x':
+		s.x = 1;
 		break;
 	default:
 		usage();

@@ -32,6 +32,7 @@ extern struct server {
 	size_t vhost_len;
 	struct map *map;
 	size_t map_len;
+	int x;
 } s;
 
 #undef MIN

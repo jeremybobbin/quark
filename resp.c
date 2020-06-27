@@ -38,6 +38,85 @@ suffix(int t)
 	return "";
 }
 
+enum status
+resp_exec(int fd, char *name, struct request *r, struct stat *st)
+{
+	enum status sta;
+	int to[2], from[2];
+	pid_t script;
+	ssize_t bread, bwritten;
+	static char buf[BUFSIZ], t[TIMESTAMP_LEN];
+
+	/* check if script is executable */
+	if (!(st->st_mode & S_IXOTH)) {
+		return http_send_status(fd, S_FORBIDDEN);
+	}
+
+	/* open two pipes in case for POST method; this doesn't break operation if GET method is used */
+	if (pipe(from) < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+
+	if (pipe(to) < 0) {
+			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+
+	/* start script */
+	if (!(script = fork())) {
+		close(from[0]);
+		close(to[1]);
+		dup2(from[1], 1);
+		dup2(to[0], 0);
+		/* prepend "./" to name */
+		memmove(name + (sizeof("./")-1), name, MIN(BUFSIZ-(sizeof("./")-1), strlen(name)+1));
+		name[0] = '.'; name[1] = '/';
+		execlp(name, name, (char*) NULL);
+	}
+
+	if (script < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+	close(from[1]);
+	close(to[0]);
+
+	/* POST method should obtain its data */
+	if (dprintf(to[1], "%s\n", r->body) < 0) {
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	}
+	close(to[1]);
+
+	/* send header as late as possible */
+	if (dprintf(fd,
+	            "HTTP/1.1 %d %s\r\n"
+	            "Date: %s\r\n"
+	            "Connection: close\r\n",
+	            S_OK, status_str[S_OK], timestamp(time(NULL), t)) < 0) {
+		sta = S_REQUEST_TIMEOUT;
+		goto cleanup;
+	}
+
+	while ((bread = read(from[0], buf, BUFSIZ)) > 0) {
+		if (bread < 0) {
+			return S_INTERNAL_SERVER_ERROR;
+		}
+
+		bwritten = write(fd, buf, bread);
+
+		if (bwritten < 0) {
+			return S_REQUEST_TIMEOUT;
+		}
+	}
+	sta = S_OK;
+cleanup:
+	if (from[0]) {
+		close(from[0]);
+	}
+
+	return sta;
+}
+
+
+
 static void
 html_escape(char *src, char *dst, size_t dst_siz)
 {
