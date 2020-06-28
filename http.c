@@ -383,10 +383,16 @@ http_send_response(int fd, struct request *r)
 	/* match cgi */
 	if (s.cgi) {
 		for (i = 0; i < s.cgi_len; i++) {
+			fprintf(stderr, "regexec(%s, %s)\n",s.cgi[i].re, realtarget);
 			if (!regexec(&s.cgi[i].re, realtarget, 0,
 			             NULL, 0)) {
+
+				fprintf(stderr, "success!\n");
 				snprintf(realtarget, sizeof(tmptarget) + sizeof(s.cgi[i].dir) - 1, "%s%s", s.cgi[i].dir, tmptarget);
+				fprintf(stderr, "realtarget: %s\n", realtarget);
 				if (stat(RELPATH(realtarget), &st) < 0) {
+
+					fprintf(stderr, "stat < 0\n");
 					return http_send_status(fd, (errno == EACCES) ?
 					                        S_FORBIDDEN : S_NO_CONTENT);
 				}
@@ -395,6 +401,7 @@ http_send_response(int fd, struct request *r)
 					setenv("SERVER_PORT", s.port, 1);
 				}
 				setenv("SCRIPT_NAME", realtarget, 1);
+
 				return resp_cgi(fd, RELPATH(realtarget), r, &st);
 			}
 		}

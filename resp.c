@@ -38,6 +38,7 @@ suffix(int t)
 	return "";
 }
 
+#include <errno.h>
 enum status
 resp_cgi(int fd, char *name, struct request *r, struct stat *st)
 {
@@ -61,6 +62,7 @@ resp_cgi(int fd, char *name, struct request *r, struct stat *st)
 			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
 	}
 
+	fprintf(stderr, "about to exec '%s'\n", name);
 	/* start script */
 	if (!(script = fork())) {
 		close(0);
@@ -69,7 +71,18 @@ resp_cgi(int fd, char *name, struct request *r, struct stat *st)
 		close(tocgi[1]);
 		dup2(fromcgi[1], 1);
 		dup2(tocgi[0], 0);
+		fprintf(stderr, "execing '%s'\n", name);
+		DIR *d;
+		struct dirent *dir;
+		d = opendir("/../");
+		if (d) {
+			while ((dir = readdir(d)) != NULL) {
+				fprintf(stderr, "%s\n", dir->d_name);
+			}
+			closedir(d);
+		}
 		execlp(name, name, (char*) NULL);
+		fprintf(stderr, "errno %d\n", errno);
 	}
 
 	if (script < 0) {
@@ -94,17 +107,23 @@ resp_cgi(int fd, char *name, struct request *r, struct stat *st)
 		goto cleanup;
 	}
 
+	fprintf(stderr, "dodododo\n");
 	while ((bread = read(fromcgi[0], buf, BUFSIZ)) > 0) {
+		buf[bread] = '\0';
+		fprintf(stderr, "%d bytes read {\n%s\n}\n", bread, buf);
 		if (bread < 0) {
 			return S_INTERNAL_SERVER_ERROR;
 		}
 
+		fprintf(stderr, "about to write\n", bwritten);
 		bwritten = write(fd, buf, bread);
+		fprintf(stderr, "%d bytes written\n", bwritten);
 
 		if (bwritten < 0) {
 			return S_REQUEST_TIMEOUT;
 		}
 	}
+	fprintf(stderr, "bread = %d\n", bread);
 	sta = S_OK;
 cleanup:
 	if (fromcgi[0]) {
