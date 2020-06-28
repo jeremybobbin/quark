@@ -68,7 +68,7 @@ sock_rem_uds(const char *udsname)
 }
 
 int
-sock_get_uds(const char *udsname, uid_t uid, gid_t gid)
+sock_get_uds(const char *udsname)
 {
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
@@ -97,11 +97,6 @@ sock_get_uds(const char *udsname, uid_t uid, gid_t gid)
 	if (chmod(udsname, sockmode) < 0) {
 		sock_rem_uds(udsname);
 		die("chmod:");
-	}
-
-	if (chown(udsname, uid, gid) < 0) {
-		sock_rem_uds(udsname);
-		die("chown:");
 	}
 
 	return insock;

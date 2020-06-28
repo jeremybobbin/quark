@@ -8,7 +8,7 @@
 
 int sock_get_ips(const char *, const char *);
 void sock_rem_uds(const char *);
-int sock_get_uds(const char *, uid_t, gid_t);
+int sock_get_uds(const char *);
 int sock_set_timeout(int, int);
 int sock_get_inaddr_str(struct sockaddr_storage *, char *, size_t);
 
