@@ -35,13 +35,8 @@ is a simple HTTP GET/HEAD-only web server for static content.
 .It Fl d Ar dir
 Serve
 .Ar dir
-after chrooting into it.
+after changing into it.
 The default is ".".
-.It Fl g Ar group
-Set group ID when dropping privileges, and in socket mode the group of the
-socket file, to the ID of
-.Ar group .
-The default is "nogroup".
 .It Fl h Ar host
 Use
 .Ar host
@@ -86,12 +81,6 @@ redirects on non-standard ports.
 Create the UNIX-domain socket
 .Ar file ,
 listen on it for incoming connections and remove it on exit.
-.It Fl u Ar user
-Set user ID when dropping privileges,
-and in socket mode the user of the socket file,
-to the ID of
-.Ar user .
-The default is "nobody".
 .It Fl v Ar vhost
 Add the virtual host specified by
 .Ar vhost ,

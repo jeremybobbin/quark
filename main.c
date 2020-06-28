@@ -1,9 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 #include <errno.h>
-#include <grp.h>
 #include <limits.h>
 #include <netinet/in.h>
-#include <pwd.h>
 #include <regex.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -163,7 +161,7 @@ err:
 static void
 usage(void)
 {
-	const char *opts = "[-u user] [-g group] [-n num] [-d dir] [-l] "
+	const char *opts = "[-n num] [-d dir] [-l] "
 	                   "[-i file] [-v vhost] ... [-m map] ...";
 
 	die("usage: %s -p port [-h host] %s\n"
@@ -174,8 +172,6 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	struct group *grp = NULL;
-	struct passwd *pwd = NULL;
 	struct rlimit rlim;
 	struct sockaddr_storage in_sa;
 	pid_t cpid, wpid, spid;
@@ -188,8 +184,6 @@ main(int argc, char *argv[])
 	/* defaults */
 	int maxnprocs = 512;
 	char *servedir = ".";
-	char *user = "nobody";
-	char *group = "nogroup";
 
 	s.host = s.port = NULL;
 	s.vhost = NULL;
@@ -201,9 +195,6 @@ main(int argc, char *argv[])
 	ARGBEGIN {
 	case 'd':
 		servedir = EARGF(usage());
-		break;
-	case 'g':
-		group = EARGF(usage());
 		break;
 	case 'h':
 		s.host = EARGF(usage());
@@ -240,9 +231,6 @@ main(int argc, char *argv[])
 		break;
 	case 'U':
 		udsname = EARGF(usage());
-		break;
-	case 'u':
-		user = EARGF(usage());
 		break;
 	case 'v':
 		if (spacetok(EARGF(usage()), tok, 4) || !tok[0] || !tok[1] ||
@@ -291,25 +279,13 @@ main(int argc, char *argv[])
 		die("setrlimit RLIMIT_NPROC:");
 	}
 
-	/* validate user and group */
-	errno = 0;
-	if (user && !(pwd = getpwnam(user))) {
-		die("getpwnam '%s': %s", user, errno ? strerror(errno) :
-		    "Entry not found");
-	}
-	errno = 0;
-	if (group && !(grp = getgrnam(group))) {
-		die("getgrnam '%s': %s", group, errno ? strerror(errno) :
-		    "Entry not found");
-	}
-
 	/* Open a new process group */
 	setpgid(0,0);
 
 	handlesignals(sigcleanup);
 
 	/* bind socket */
-	insock = udsname ? sock_get_uds(udsname, pwd->pw_uid, grp->gr_gid) :
+	insock = udsname ? sock_get_uds(udsname) :
 	                   sock_get_ips(s.host, s.port);
 
 	switch (cpid = fork()) {
@@ -329,36 +305,14 @@ main(int argc, char *argv[])
 		eunveil(servedir, "r");
 		eunveil(NULL, NULL);
 
-		/* chroot */
 		if (chdir(servedir) < 0) {
 			die("chdir '%s':", servedir);
-		}
-		if (chroot(".") < 0) {
-			die("chroot .:");
-		}
-
-		/* drop root */
-		if (grp && setgroups(1, &(grp->gr_gid)) < 0) {
-			die("setgroups:");
-		}
-		if (grp && setgid(grp->gr_gid) < 0) {
-			die("setgid:");
-		}
-		if (pwd && setuid(pwd->pw_uid) < 0) {
-			die("setuid:");
 		}
 
 		if (udsname) {
 			epledge("stdio rpath proc unix", NULL);
 		} else {
 			epledge("stdio rpath proc inet", NULL);
-		}
-
-		if (getuid() == 0) {
-			die("Won't run as root user", argv0);
-		}
-		if (getgid() == 0) {
-			die("Won't run as root group", argv0);
 		}
 
 		/* accept incoming connections */
