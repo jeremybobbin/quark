@@ -240,7 +240,7 @@ http_get_request(int fd, struct request *r)
 	}
 
 	/* all other data will be later passed to script */
-	sprintf(r->body, "%s", p);
+	snprintf(r->body, sizeof(r->body), "%s", p);
 
 	/*
 	 * clean up host
