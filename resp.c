@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "http.h"
 #include "resp.h"
@@ -46,6 +47,9 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 	pid_t script;
 	ssize_t bread, bwritten;
 	static char buf[BUFSIZ], t[TIMESTAMP_LEN];
+	char cwd[PATH_MAX];
+	getcwd(cwd, PATH_MAX);
+	fprintf(stderr, "resp_exec - working dir: '%s'\n", cwd);
 
 	/* check if script is executable */
 	if (!(st->st_mode & S_IXOTH)) {
@@ -71,6 +75,8 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 		memmove(name + (sizeof("./")-1), name, MIN(BUFSIZ-(sizeof("./")-1), strlen(name)+1));
 		name[0] = '.'; name[1] = '/';
 		execlp(name, name, (char*) NULL);
+		getcwd(cwd, PATH_MAX);
+		fprintf(stderr, "%s/%s failed with error: %s\n", cwd, name, strerror(errno));
 	}
 
 	if (script < 0) {

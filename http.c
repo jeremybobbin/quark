@@ -551,6 +551,7 @@ http_send_response(int fd, struct request *r)
 		if (s.port) {
 			setenv("SERVER_PORT", s.port, 1);
 		}
+		fprintf(stderr, "running resp_exec on %s\n", realtarget);
 		return resp_exec(fd, RELPATH(realtarget), r, &st);
 	}
 
