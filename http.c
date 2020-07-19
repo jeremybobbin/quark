@@ -531,7 +531,7 @@ http_send_response(int fd, struct request *r)
 		}
 
 		/* compare with last modification date of the file */
-		if (difftime(st.st_mtim.tv_sec, mktime(&tm)) <= 0) {
+		if (difftime(st.st_mtim.tv_sec, timegm(&tm)) <= 0) {
 			if (dprintf(fd,
 			            "HTTP/1.1 %d %s\r\n"
 			            "Date: %s\r\n"
