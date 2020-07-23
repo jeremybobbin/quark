@@ -465,8 +465,9 @@ http_send_response(int fd, struct request *r)
 	}
 
 	/* redirect if targets differ, host is non-canonical or we prefixed */
-	if (strcmp(r->target, realtarget) || (s.vhost && vhostmatch &&
-	    strcmp(r->field[REQ_HOST], vhostmatch))) {
+	if (((i = strcmp(realtarget, r->target)) != '/' && i &&
+		strlen(realtarget)+1 == strlen(r->target)) || (s.vhost && vhostmatch &&
+		strcmp(r->field[REQ_HOST], vhostmatch))) {
 		/* encode realtarget */
 		encode(realtarget, tmptarget);
 
@@ -526,10 +527,11 @@ http_send_response(int fd, struct request *r)
 
 	if (S_ISDIR(st.st_mode)) {
 		/* append docindex to target */
-		if (esnprintf(realtarget, sizeof(realtarget), "%s%s",
-		              r->target, s.docindex)) {
+		if (esnprintf(tmptarget, sizeof(tmptarget), "%s%s",
+		              realtarget, s.docindex)) {
 			return http_send_status(fd, S_REQUEST_TOO_LARGE);
 		}
+		memcpy(realtarget, tmptarget, sizeof(realtarget));
 
 		/* stat the docindex, which must be a regular file */
 		if (stat(RELPATH(realtarget), &st) < 0 || !S_ISREG(st.st_mode)) {
