@@ -97,10 +97,9 @@ int
 http_get_request(int fd, struct request *r)
 {
 	struct in6_addr res;
-	size_t hlen, i, mlen;
+	size_t hlen, i, mlen, len, rest;
 	ssize_t off;
-	char h[HEADER_MAX], *p, *q;
-	size_t clen;
+	char h[HEADER_MAX], *p, *q, *hterm;
 
 	/* empty all fields */
 	memset(r, 0, sizeof(*r));
@@ -115,20 +114,19 @@ http_get_request(int fd, struct request *r)
 			break;
 		}
 		hlen += off;
-		if (hlen >= 4 && strstr(h, "\r\n\r\n")) {
+		hterm = strstr(h, "\r\n\r\n")+2;
+		if (hlen >= 4 && hterm) {
 			if (strstr(h, "Content-Length:")) {
 				/* Make sure that all data is read */
-				sscanf(strstr(h, "Content-Length:"), "Content-Length: %lu", &clen);
-				if (strlen(strstr(h, "\r\n\r\n")) == 4 + clen) {
+				sscanf(strstr(h, "Content-Length:"), "Content-Length: %lu", &r->clen);
+				rest = MIN(r->clen, ((sizeof(h)) - (hterm - h)) - 2);
+				if ((r->read = hlen - ((hterm-h)+2)) == rest) {
 					break;
 				}
 			}
 			else {
 				break;
 			}
-		}
-		if (hlen == sizeof(h)) {
-			return http_send_status(fd, S_REQUEST_TOO_LARGE);
 		}
 	}
 
@@ -194,7 +192,7 @@ http_get_request(int fd, struct request *r)
 	 */
 
 	/* match field type */
-	for (; *p != '\0';) {
+	for (; *p != '\0' && p != hterm;) {
 		for (i = 0; i < NUM_REQ_FIELDS; i++) {
 			if (!strncasecmp(p, req_field_str[i],
 			                 strlen(req_field_str[i]))) {
@@ -240,7 +238,17 @@ http_get_request(int fd, struct request *r)
 	}
 
 	/* all other data will be later passed to script */
-	snprintf(r->body, sizeof(r->body), "%s", p);
+	if (pipe(r->body) < 0)
+		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+
+	p+=2;
+	len = MIN(r->clen, ((sizeof(h)) - (hterm - h)) - 2);
+	while (len > 0) {
+		if ((i = write(r->body[1], p, len)) < 0) {
+			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+		}
+		len -= i;
+	}
 
 	/*
 	 * clean up host

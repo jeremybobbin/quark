@@ -42,7 +42,7 @@ enum status
 resp_exec(int fd, char *name, struct request *r, struct stat *st)
 {
 	enum status sta;
-	int to[2], from[2];
+	int resp[2];
 	pid_t script;
 	ssize_t bread, bwritten;
 	static char buf[BUFSIZ], t[TIMESTAMP_LEN];
@@ -53,20 +53,16 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 	}
 
 	/* open two pipes in case for POST method; this doesn't break operation if GET method is used */
-	if (pipe(from) < 0) {
-		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
-	}
-
-	if (pipe(to) < 0) {
+	if (pipe(resp) < 0) {
 			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
 	}
 
 	/* start script */
 	if (!(script = fork())) {
-		close(from[0]);
-		close(to[1]);
-		dup2(from[1], 1);
-		dup2(to[0], 0);
+		close(resp[0]);
+		close(r->body[1]);
+		dup2(resp[1], 1);
+		dup2(r->body[0], 0);
 		/* prepend "./" to name */
 		memmove(name + (sizeof("./")-1), name, MIN(BUFSIZ-(sizeof("./")-1), strlen(name)+1));
 		name[0] = '.'; name[1] = '/';
@@ -76,14 +72,18 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 	if (script < 0) {
 		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
 	}
-	close(from[1]);
-	close(to[0]);
+	close(r->body[0]);
+	close(resp[1]);
 
 	/* POST method should obtain its data */
-	if (dprintf(to[1], "%s", r->body) < 0) {
-		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+	while (bread = read(fd, buf, MIN(r->clen - r->read, sizeof(buf)))) {
+		if (bread < 0)
+			return S_INTERNAL_SERVER_ERROR;
+		r->read += bread;
+		if ((bwritten = write(r->body[1], buf, bread)) <= 0)
+			return S_INTERNAL_SERVER_ERROR;
 	}
-	close(to[1]);
+	close(r->body[1]);
 
 	/* send header as late as possible */
 	if (dprintf(fd,
@@ -95,7 +95,7 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 		goto cleanup;
 	}
 
-	while ((bread = read(from[0], buf, BUFSIZ)) > 0) {
+	while ((bread = read(resp[0], buf, BUFSIZ)) > 0) {
 		if (bread < 0) {
 			return S_INTERNAL_SERVER_ERROR;
 		}
@@ -108,8 +108,8 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 	}
 	sta = S_OK;
 cleanup:
-	if (from[0]) {
-		close(from[0]);
+	if (resp[0]) {
+		close(resp[0]);
 	}
 
 	return sta;
