@@ -97,9 +97,10 @@ int
 http_get_request(int fd, struct request *r)
 {
 	struct in6_addr res;
-	size_t hlen, i, mlen, len, rest;
+	int i;
+	size_t hlen, mlen, left;
 	ssize_t off;
-	char h[HEADER_MAX], *p, *q, *hterm;
+	char h[HEADER_MAX], *p, *q, *bp;
 
 	/* empty all fields */
 	memset(r, 0, sizeof(*r));
@@ -107,20 +108,31 @@ http_get_request(int fd, struct request *r)
 	/*
 	 * receive header
 	 */
-	for (hlen = 0; ;) {
+	for (hlen = 0, bp = h; ;) {
 		if ((off = read(fd, h + hlen, sizeof(h) - hlen)) < 0) {
 			return http_send_status(fd, S_REQUEST_TIMEOUT);
 		} else if (off == 0) {
 			break;
 		}
 		hlen += off;
-		hterm = strstr(h, "\r\n\r\n")+2;
-		if (hlen >= 4 && hterm) {
+		/* body pointer */
+		bp = strstr(h, "\r\n\r\n")+4;
+		if (hlen >= 4 && bp) {
 			if (strstr(h, "Content-Length:")) {
 				/* Make sure that all data is read */
 				sscanf(strstr(h, "Content-Length:"), "Content-Length: %lu", &r->clen);
-				rest = MIN(r->clen, ((sizeof(h)) - (hterm - h)) - 2);
-				if ((r->read = hlen - ((hterm-h)+2)) == rest) {
+				/* this is the length of body that was read into the header */
+				left = MIN(r->clen, (size_t)(END(h) - bp));
+
+				if (hlen - (bp-h) == left) {
+					/* all other data will be later passed to script */
+					if (pipe(r->body) < 0)
+						return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+					while (r->read < (size_t)left) {
+						if ((i = write(r->body[1], bp+r->read, left)) < 0)
+							return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
+						r->read += i;
+					}
 					break;
 				}
 			}
@@ -192,7 +204,7 @@ http_get_request(int fd, struct request *r)
 	 */
 
 	/* match field type */
-	for (; *p != '\0' && p != hterm;) {
+	for (; *p != '\0' && p != bp-2;) {
 		for (i = 0; i < NUM_REQ_FIELDS; i++) {
 			if (!strncasecmp(p, req_field_str[i],
 			                 strlen(req_field_str[i]))) {
@@ -235,19 +247,6 @@ http_get_request(int fd, struct request *r)
 
 		/* go to next line */
 		p = q + (sizeof("\r\n") - 1);
-	}
-
-	/* all other data will be later passed to script */
-	if (pipe(r->body) < 0)
-		return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
-
-	p+=2;
-	len = MIN(r->clen, ((sizeof(h)) - (hterm - h)) - 2);
-	while (len > 0) {
-		if ((i = write(r->body[1], p, len)) < 0) {
-			return http_send_status(fd, S_INTERNAL_SERVER_ERROR);
-		}
-		len -= i;
 	}
 
 	/*

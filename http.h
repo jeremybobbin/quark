@@ -29,8 +29,8 @@ struct request {
 	enum req_method method;
 	char target[PATH_MAX];
 	char field[NUM_REQ_FIELDS][FIELD_MAX];
-	int read;
-	int clen;
+	size_t read;
+	size_t clen;
 	int body[2];
 };
 

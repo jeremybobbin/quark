@@ -41,6 +41,8 @@ extern struct server {
 #define MAX(x,y)  ((x) > (y) ? (x) : (y))
 #undef LEN
 #define LEN(x) (sizeof (x) / sizeof *(x))
+#undef END
+#define END(x) (x + sizeof(x))
 
 extern char *argv0;
 

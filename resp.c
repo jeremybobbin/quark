@@ -76,7 +76,7 @@ resp_exec(int fd, char *name, struct request *r, struct stat *st)
 	close(resp[1]);
 
 	/* POST method should obtain its data */
-	while (bread = read(fd, buf, MIN(r->clen - r->read, sizeof(buf)))) {
+	while ((bread = read(fd, buf, MIN(r->clen - r->read, sizeof(buf))))) {
 		if (bread < 0)
 			return S_INTERNAL_SERVER_ERROR;
 		r->read += bread;
