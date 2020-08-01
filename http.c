@@ -562,7 +562,20 @@ http_send_response(int fd, struct request *r)
 	/* execute if executible */
 	if (s.x && st.st_mode & S_IXUSR) {
 		setenv("SERVER_NAME", r->field[REQ_HOST], 1);
-		setenv("COOKIES", r->field[REQ_COOKIES], 1);
+		if (r->field[REQ_COOKIES]) {
+			char *cookies = r->field[REQ_COOKIES],
+				*p = cookies,
+				*var, *val;
+			setenv("COOKIES", cookies, 1);
+			while ((p = strsep(&cookies, "; \n"))) {
+				var = strtok(p, "=");
+				val = NULL;
+				if (var && (val = strtok(NULL, "=")))
+					setenv(var, val, 0);
+				else
+					setenv(var, "", 0);
+			}
+		}
 		if (s.port) {
 			setenv("SERVER_PORT", s.port, 1);
 		}
