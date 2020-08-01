@@ -11,6 +11,7 @@ enum req_field {
 	REQ_HOST,
 	REQ_RANGE,
 	REQ_IF_MODIFIED_SINCE,
+	REQ_COOKIES,
 	NUM_REQ_FIELDS,
 };
 

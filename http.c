@@ -26,6 +26,7 @@ const char *req_field_str[] = {
 	[REQ_HOST]              = "Host",
 	[REQ_RANGE]             = "Range",
 	[REQ_IF_MODIFIED_SINCE] = "If-Modified-Since",
+	[REQ_COOKIES] = "Cookie",
 };
 
 const char *req_method_str[] = {
@@ -561,6 +562,7 @@ http_send_response(int fd, struct request *r)
 	/* execute if executible */
 	if (s.x && st.st_mode & S_IXUSR) {
 		setenv("SERVER_NAME", r->field[REQ_HOST], 1);
+		setenv("COOKIES", r->field[REQ_COOKIES], 1);
 		if (s.port) {
 			setenv("SERVER_PORT", s.port, 1);
 		}
