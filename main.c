@@ -272,8 +272,8 @@ main(int argc, char *argv[])
 	}
 
 	if (udsname && (!access(udsname, F_OK) || errno != ENOENT)) {
-		die("UNIX-domain socket: %s", errno ?
-		    strerror(errno) : "file exists");
+		die("UNIX-domain socket '%s': %s", udsname, errno ?
+		    strerror(errno) : "File exists");
 	}
 
 	/* compile and check the supplied vhost regexes */
@@ -293,14 +293,14 @@ main(int argc, char *argv[])
 
 	/* validate user and group */
 	errno = 0;
-	if (user && !(pwd = getpwnam(user))) {
-		die("getpwnam '%s': %s", user, errno ? strerror(errno) :
-		    "Entry not found");
+	if (!user || !(pwd = getpwnam(user))) {
+		die("getpwnam '%s': %s", user ? user : "null",
+		    errno ? strerror(errno) : "Entry not found");
 	}
 	errno = 0;
-	if (group && !(grp = getgrnam(group))) {
-		die("getgrnam '%s': %s", group, errno ? strerror(errno) :
-		    "Entry not found");
+	if (!group || !(grp = getgrnam(group))) {
+		die("getgrnam '%s': %s", group ? group : "null",
+		    errno ? strerror(errno) : "Entry not found");
 	}
 
 	/* open a new process group */
@@ -338,13 +338,13 @@ main(int argc, char *argv[])
 		}
 
 		/* drop root */
-		if (grp && setgroups(1, &(grp->gr_gid)) < 0) {
+		if (setgroups(1, &(grp->gr_gid)) < 0) {
 			die("setgroups:");
 		}
-		if (grp && setgid(grp->gr_gid) < 0) {
+		if (setgid(grp->gr_gid) < 0) {
 			die("setgid:");
 		}
-		if (pwd && setuid(pwd->pw_uid) < 0) {
+		if (setuid(pwd->pw_uid) < 0) {
 			die("setuid:");
 		}
 
