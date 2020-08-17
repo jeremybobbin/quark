@@ -416,11 +416,6 @@ http_send_response(int fd, struct request *r)
 		return http_send_status(fd, S_BAD_REQUEST);
 	}
 
-	/* reject hidden target */
-	if (realtarget[0] == '.' || strstr(realtarget, "/.")) {
-		return http_send_status(fd, S_FORBIDDEN);
-	}
-
 	/* stat the target */
 	if (stat(RELPATH(realtarget), &st) < 0) {
 		return http_send_status(fd, (errno == EACCES) ?
@@ -437,6 +432,15 @@ http_send_response(int fd, struct request *r)
 			realtarget[len] = '/';
 			realtarget[len + 1] = '\0';
 		}
+	}
+
+	/*
+	 * reject hidden target, except if it is a well-known URI
+	 * according to RFC 8615
+	 */
+	if (strstr(realtarget, "/.") && strncmp(realtarget,
+	    "/.well-known/", sizeof("/.well-known/") - 1)) {
+		return http_send_status(fd, S_FORBIDDEN);
 	}
 
 	/* redirect if targets differ, host is non-canonical or we prefixed */
